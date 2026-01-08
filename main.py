@@ -7,6 +7,7 @@ from datetime import datetime
 import pytz
 import plotly.graph_objects as go
 import plotly.express as px
+import feedparser  # <<< NOVO: pip install feedparser (gratuito e leve)
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA & CSS HACKING ---
 st.set_page_config(
@@ -16,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Customizado para o "Look" Startup Dark Mode
+# CSS Customizado (mantido igual)
 st.markdown("""
 <style>
     /* Fundo geral e fontes */
@@ -78,13 +79,43 @@ def get_news(api_key):
         return []
     return []
 
+@st.cache_data(ttl=600)  # Cache de 10min para RSS (mais frequente que NewsAPI)
+def get_rss_economia_popular():
+    feeds = [
+        "https://www.infomoney.com.br/feed/",
+        "https://economia.uol.com.br/ultnot/index.rss",
+        "https://agenciabrasil.ebc.com.br/economia/rss"
+    ]
+    entries = []
+    for feed_url in feeds:
+        try:
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:5]:  # Pega até 5 por feed
+                entries.append({
+                    'title': entry.title,
+                    'summary': entry.get('summary', 'Sem descrição'),
+                    'link': entry.link,
+                    'source': feed.feed.get('title', 'Fonte RSS')
+                })
+        except:
+            continue
+    # Remove duplicatas por título e limita a 8
+    seen = set()
+    unique_entries = []
+    for e in entries:
+        if e['title'] not in seen:
+            unique_entries.append(e)
+            seen.add(e['title'])
+        if len(unique_entries) >= 8:
+            break
+    return unique_entries
+
 @st.cache_data(ttl=300)
 def get_market_data():
     tickers = {"S&P 500": "^GSPC", "Bitcoin": "BTC-USD", "Ouro": "GC=F", "Ibovespa": "^BVSP"}
     metrics = {}
     history_df = pd.DataFrame()
    
-    # Histórico do Bitcoin para o gráfico
     try:
         btc = yf.Ticker("BTC-USD")
         history_df = btc.history(period="1mo", interval="1d")
@@ -94,14 +125,13 @@ def get_market_data():
         st.error("Error fetching Bitcoin chart data.")
         history_df = pd.DataFrame()
 
-    # Métricas pontuais com maior robustez
     try:
         for name, ticker in tickers.items():
             stock = yf.Ticker(ticker)
             hist = stock.history(period="5d")
             if len(hist) >= 2:
                 current = hist['Close'].iloc[-1]
-                prev = hist['Close'].iloc[-2]  # Usa close anterior (mais preciso)
+                prev = hist['Close'].iloc[-2]
                 delta = ((current - prev) / prev) * 100
                 metrics[name] = (round(current, 2), round(delta, 2))
             else:
@@ -117,7 +147,6 @@ def analyze_sentiment_nlp(text):
     return TextBlob(text).sentiment.polarity
 
 def get_solar_session():
-    # Horário de Brasília (mais relevante para usuários BR)
     now = datetime.now(pytz.timezone('America/Sao_Paulo'))
     hour = now.hour
     if 5 <= hour < 12:
@@ -164,7 +193,7 @@ def main():
         st.divider()
         st.markdown("Developed by **Arandu Labs**")
 
-    # Header Section
+    # Header Section (mantido)
     col_logo, col_status = st.columns([2, 1])
     with col_logo:
         st.markdown('<h1 class="gradient-text">ARANDU OS</h1>', unsafe_allow_html=True)
@@ -178,7 +207,7 @@ def main():
 
     st.markdown("---")
 
-    # 1. KPI ROW (Métricas em Cards)
+    # 1. KPI ROW (mantido)
     metrics, history_df = get_market_data()
    
     if metrics:
@@ -199,7 +228,7 @@ def main():
     else:
         st.warning("Connecting to Market Data Feeds...")
 
-    # 2. MAIN GRID (Gráfico + Oráculo)
+    # 2. MAIN GRID (mantido)
     st.markdown("<br>", unsafe_allow_html=True)
    
     col_chart, col_oracle = st.columns([2, 1])
@@ -221,7 +250,6 @@ def main():
             if news:
                 sentiment_display = sum(analyze_sentiment_nlp(n['title']) for n in news) / len(news)
        
-        # Gauge de Sentimento
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
             value=sentiment_display,
@@ -245,7 +273,6 @@ def main():
         )
         st.plotly_chart(fig_gauge, use_container_width=True)
        
-        # Recomendação
         if sentiment_display > 0.1:
             st.success("RECOMMENDATION: **AGGRESSIVE GROWTH**")
         elif sentiment_display < -0.1:
@@ -253,7 +280,7 @@ def main():
         else:
             st.warning("RECOMMENDATION: **WAIT & OBSERVE**")
 
-    # 3. NEWS FEED
+    # 3. NEWS FEED PRINCIPAL (mantido)
     st.markdown("---")
     st.subheader("Intelligence Feed")
    
@@ -282,6 +309,38 @@ def main():
         Cadastre-se gratuitamente em [newsapi.org](https://newsapi.org/register)  
         (plano free permite 100 requests/dia)
         """)
+
+    # === 4. NOVO: FEED DE ECONOMIA POPULAR VIA RSS (GRATUITO) ===
+    st.markdown("---")
+    st.subheader("💰 Dicas de Economia Popular & Finanças Pessoais")
+
+    rss_news = get_rss_economia_popular()
+    
+    if rss_news:
+        for i in range(0, len(rss_news), 2):
+            row_c1, row_c2 = st.columns(2)
+            
+            if i < len(rss_news):
+                with row_c1:
+                    item = rss_news[i]
+                    sent = analyze_sentiment_nlp(item['title'])
+                    emoji = "🟢" if sent > 0 else "🔴" if sent < 0 else "⚪"
+                    with st.expander(f"{emoji} {item['title']}", expanded=False):
+                        st.caption(item['source'])
+                        st.write(item['summary'][:500] + "..." if len(item['summary']) > 500 else item['summary'])
+                        st.markdown(f"[Ler mais]({item['link']})")
+            
+            if i + 1 < len(rss_news):
+                with row_c2:
+                    item = rss_news[i+1]
+                    sent = analyze_sentiment_nlp(item['title'])
+                    emoji = "🟢" if sent > 0 else "🔴" if sent < 0 else "⚪"
+                    with st.expander(f"{emoji} {item['title']}", expanded=False):
+                        st.caption(item['source'])
+                        st.write(item['summary'][:500] + "..." if len(item['summary']) > 500 else item['summary'])
+                        st.markdown(f"[Ler mais]({item['link']})")
+    else:
+        st.info("Carregando dicas de economia popular... (RSS gratuito)")
 
 if __name__ == "__main__":
     main()
