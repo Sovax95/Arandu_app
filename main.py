@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 import plotly.graph_objects as go
 import plotly.express as px
-import feedparser  # <<< NOVO: pip install feedparser (gratuito e leve)
+import feedparser
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA & CSS HACKING ---
 st.set_page_config(
@@ -17,16 +17,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Customizado (mantido igual)
 st.markdown("""
 <style>
-    /* Fundo geral e fontes */
     .stApp {
         background-color: #0E1117;
         font-family: 'Inter', sans-serif;
     }
    
-    /* Cards de Métricas */
     div[data-testid="metric-container"] {
         background-color: #161B22;
         border: 1px solid #30363D;
@@ -40,7 +37,6 @@ st.markdown("""
         transform: scale(1.02);
     }
    
-    /* Títulos com Gradiente (Efeito Cyberpunk) */
     .gradient-text {
         background: -webkit-linear-gradient(45deg, #00C9FF, #92FE9D);
         -webkit-background-clip: text;
@@ -49,12 +45,10 @@ st.markdown("""
         font-size: 3em;
     }
    
-    /* Barra lateral */
     section[data-testid="stSidebar"] {
         background-color: #0d1117;
     }
    
-    /* Botões e Inputs */
     .stTextInput input {
         background-color: #0d1117;
         color: #c9d1d9;
@@ -63,7 +57,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. FUNÇÕES DE INTELIGÊNCIA (BACKEND APRIMORADO) ---
+# --- 2. FUNÇÕES DE INTELIGÊNCIA ---
 @st.cache_data(ttl=3600)
 def get_news(api_key):
     if not api_key:
@@ -79,7 +73,7 @@ def get_news(api_key):
         return []
     return []
 
-@st.cache_data(ttl=600)  # Cache de 10min para RSS (mais frequente que NewsAPI)
+@st.cache_data(ttl=600)
 def get_rss_economia_popular():
     feeds = [
         "https://www.infomoney.com.br/feed/",
@@ -90,7 +84,7 @@ def get_rss_economia_popular():
     for feed_url in feeds:
         try:
             feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:5]:  # Pega até 5 por feed
+            for entry in feed.entries[:5]:
                 entries.append({
                     'title': entry.title,
                     'summary': entry.get('summary', 'Sem descrição'),
@@ -99,7 +93,6 @@ def get_rss_economia_popular():
                 })
         except:
             continue
-    # Remove duplicatas por título e limita a 8
     seen = set()
     unique_entries = []
     for e in entries:
@@ -186,14 +179,12 @@ def render_chart(df):
     st.plotly_chart(fig, use_container_width=True)
 
 def main():
-    # Sidebar Minimalista
     with st.sidebar:
         st.caption("SYSTEM CONFIG")
         api_key = st.text_input("NewsAPI Key", type="password")
         st.divider()
         st.markdown("Developed by **Arandu Labs**")
 
-    # Header Section (mantido)
     col_logo, col_status = st.columns([2, 1])
     with col_logo:
         st.markdown('<h1 class="gradient-text">ARANDU OS</h1>', unsafe_allow_html=True)
@@ -207,7 +198,6 @@ def main():
 
     st.markdown("---")
 
-    # 1. KPI ROW (mantido)
     metrics, history_df = get_market_data()
    
     if metrics:
@@ -228,7 +218,6 @@ def main():
     else:
         st.warning("Connecting to Market Data Feeds...")
 
-    # 2. MAIN GRID (mantido)
     st.markdown("<br>", unsafe_allow_html=True)
    
     col_chart, col_oracle = st.columns([2, 1])
@@ -254,7 +243,7 @@ def main():
             mode="gauge+number",
             value=sentiment_display,
             domain={'x': [0, 1], 'y': [0, 1]},
-            title={'text': "Global Sentiment (NLP)"},
+            title={'text': "News-Based Sentiment Score"},
             gauge={
                 'axis': {'range': [-1, 1], 'tickcolor': "white"},
                 'bar': {'color': "#00C9FF"},
@@ -273,14 +262,14 @@ def main():
         )
         st.plotly_chart(fig_gauge, use_container_width=True)
        
+        # <<< ALTERADO PARA EVITAR TOM DE RECOMENDAÇÃO >>>
         if sentiment_display > 0.1:
-            st.success("RECOMMENDATION: **AGGRESSIVE GROWTH**")
+            st.success("MARKET SENTIMENT SIGNAL: **BULLISH**")
         elif sentiment_display < -0.1:
-            st.error("RECOMMENDATION: **CAPITAL PRESERVATION**")
+            st.error("MARKET SENTIMENT SIGNAL: **BEARISH**")
         else:
-            st.warning("RECOMMENDATION: **WAIT & OBSERVE**")
+            st.warning("MARKET SENTIMENT SIGNAL: **NEUTRAL**")
 
-    # 3. NEWS FEED PRINCIPAL (mantido)
     st.markdown("---")
     st.subheader("Intelligence Feed")
    
@@ -310,7 +299,6 @@ def main():
         (plano free permite 100 requests/dia)
         """)
 
-    # === 4. NOVO: FEED DE ECONOMIA POPULAR VIA RSS (GRATUITO) ===
     st.markdown("---")
     st.subheader("💰 Dicas de Economia Popular & Finanças Pessoais")
 
